@@ -7,11 +7,20 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.i.video.caller.connect.ConnectScreen
+import com.i.video.caller.connect.ConnectViewModel
 import com.i.video.caller.ui.theme.IVideoCallerTheme
+import com.i.video.caller.video.CallState
+import com.i.video.caller.video.VideoCallScreen
+import com.i.video.caller.video.VideoCallViewModel
+import io.getstream.video.android.compose.theme.VideoTheme
+import kotlinx.serialization.Serializable
+import org.koin.androidx.compose.koinViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -20,28 +29,55 @@ class MainActivity : ComponentActivity() {
         setContent {
             IVideoCallerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
+                    val navController = rememberNavController()
+                    NavHost(
+                        navController = navController,
+                        startDestination = ConnectRoute,
                         modifier = Modifier.padding(innerPadding)
-                    )
+                    ) {
+                        composable<ConnectRoute> {
+                            val viewModel = koinViewModel<ConnectViewModel>()
+                            val state = viewModel.state
+
+                            LaunchedEffect(key1 = state.isConnected) {
+                                if (state.isConnected) {
+                                    navController.navigate(VideoCallRoute) {
+                                        popUpTo(ConnectRoute) {
+                                            inclusive = true
+                                        }
+                                    }
+                                }
+                            }
+
+                            ConnectScreen(state = state, onAction = viewModel::onAction)
+                        }
+                        composable<VideoCallRoute> {
+                            val viewModel = koinViewModel<VideoCallViewModel>()
+                            val state = viewModel.state
+
+                            LaunchedEffect(key1 = state.callState) {
+                                if (state.callState == CallState.ENDED) {
+                                    navController.navigate(ConnectRoute) {
+                                        popUpTo(VideoCallRoute) {
+                                            inclusive = true
+                                        }
+                                    }
+                                }
+                            }
+
+                            VideoTheme {
+                                VideoCallScreen(state = state, onAction = viewModel::onAction)
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
+@Serializable
+data object ConnectRoute
 
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    IVideoCallerTheme {
-        Greeting("Android")
-    }
-}
+@Serializable
+data object VideoCallRoute
